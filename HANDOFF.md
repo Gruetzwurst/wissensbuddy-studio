@@ -48,3 +48,8 @@
 
 ## Designregeln
 Die freigegebenen Charakter- und UI-Vorlagen sind verbindlich: weißer Rundkopf, runde schwarze Brille, drei Haarsträhnen, grüner Hoodie, schwarze Hose, weiße Schuhe. Stabile **vollständige Figur**, kein Dauerwippen, **niemals zwei Münder gleichzeitig**. Nutzer möchte nur **eine einfach bedienbare Web-App**, möglichst kostenlos. Pilot: „Warum kacken Wombats Würfel?“
+
+## Übernahme durch Codex (16.11.2026)
+Die Originalgrafiken, Demo-Medien und Referenzen aus `wissensbuddy.zip` wurden ergänzt. Bestehende README, HTML und Übergabetexte blieben erhalten. Alle 15 Asset-Verweise sind lokal vorhanden; JavaScript-Syntaxprüfung mit Node erfolgreich. 29 Medien-/Referenzdateien stimmen bytegleich mit dem ZIP überein.
+
+Ein neuer funktionaler Browser- oder Audiotest wurde nicht durchgeführt: Hier ist kein Browser verfügbar; der Download des Testbrowsers wurde abgelehnt. Echtes iPhone Safari, HTTPS-Wiedergabe und Videoexport bleiben ungeprüft.
