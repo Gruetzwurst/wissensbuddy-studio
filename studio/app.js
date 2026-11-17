@@ -94,6 +94,55 @@ const layouts=[
 ];
 
 layouts.forEach(s=>{s.start=s.at*50;delete s.at;});
+const eyeAreas=[{x:52,y:54,w:12,h:19,cx:58,cy:63},{x:87,y:49,w:12,h:17,cx:93,cy:58}];
+const expressionGlyphs={};
+const expressionSources={
+ front_excited:{asset:'front_excited',crops:[[39,60,13,7],[73,52,12,8]],sizes:[[15,9],[15,10]]},
+ front_laugh:{asset:'front_laugh',crops:[[53,53,15,10],[87,43,15,11]],sizes:[[18,12],[18,13]]},
+ front_question:{asset:'front_question',crops:[[65,57,7,12],[95,51,6,11]],sizes:[[8,14],[8,14]],offset:[2,-2]},
+ front_surprised:{asset:'front_surprised',crops:[[63,57,7,12],[93,51,6,12]],sizes:[[10,11],[10,11]]},
+ gesture_think:{asset:'gesture_think',crops:[[47,33,11,11],[77,27,12,6]],sizes:[[15,13],[16,8]],offset:[0,-2]}
+};
+function expressionForPose(key){
+ const legacy={gesture_explain:'front',gesture_point:'front_question',gesture_present:'front_excited',gesture_thumbs:'front_excited',gesture_laptop:'gesture_think',gesture_idea:'front_excited',gesture_whoa:'front_surprised'};
+ return expressionSources[key]?key:legacy[key]||'front';
+}
+function prepareExpressionLayers(){
+ const source=spriteImgs.front_nomouth,base=document.createElement('canvas');base.width=source.width;base.height=source.height;
+ const ctx=base.getContext('2d');ctx.drawImage(source,0,0);
+ const face=ctx.getImageData(0,0,base.width,base.height);
+ for(const area of eyeAreas){
+  const sample=(x,y)=>Array.from(face.data.slice((y*base.width+x)*4,(y*base.width+x)*4+3));
+  const corners=[sample(area.x,area.y),sample(area.x+area.w-1,area.y),sample(area.x,area.y+area.h-1),sample(area.x+area.w-1,area.y+area.h-1)];
+  for(let y=0;y<area.h;y++)for(let x=0;x<area.w;x++){
+   const fx=x/(area.w-1),fy=y/(area.h-1),i=((area.y+y)*base.width+area.x+x)*4;
+   for(let channel=0;channel<3;channel++)face.data[i+channel]=Math.round((corners[0][channel]*(1-fx)+corners[1][channel]*fx)*(1-fy)+(corners[2][channel]*(1-fx)+corners[3][channel]*fx)*fy);
+  }
+ }
+ ctx.putImageData(face,0,0);spriteImgs.expression_base=base;
+ for(const [key,style] of Object.entries(expressionSources)){
+  const image=spriteImgs[style.asset];if(!image)continue;
+  expressionGlyphs[key]=style.crops.map(([x,y,w,h])=>{
+   const glyph=document.createElement('canvas');glyph.width=w;glyph.height=h;
+   const context=glyph.getContext('2d');context.drawImage(image,x,y,w,h,0,0,w,h);
+   const pixels=context.getImageData(0,0,w,h);
+   for(let i=0;i<pixels.data.length;i+=4){const darkness=255-Math.round((pixels.data[i]+pixels.data[i+1]+pixels.data[i+2])/3);pixels.data[i+3]=Math.round(pixels.data[i+3]*darkness/255);pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=18;}
+   context.putImageData(pixels,0,0);return glyph;
+  });
+ }
+}
+function drawExpressionEyes(context,key,blink){
+ context.save();context.translate(-68,-128);
+ if(blink){
+  context.strokeStyle='#171917';context.lineWidth=2;context.lineCap='round';
+  for(const eye of eyeAreas){context.beginPath();context.moveTo(eye.cx-5,eye.cy);context.quadraticCurveTo(eye.cx,eye.cy+2,eye.cx+5,eye.cy);context.stroke();}
+ }else if(expressionGlyphs[key]){
+  const style=expressionSources[key],offset=style.offset||[0,0];
+  expressionGlyphs[key].forEach((glyph,i)=>{const [w,h]=style.sizes[i],eye=eyeAreas[i];context.drawImage(glyph,eye.cx-w/2+offset[0],eye.cy-h/2+offset[1],w,h);});
+ }
+ context.restore();
+}
+
 function loadSprites(){
   const entries=Object.entries(buddyAssets);
   return Promise.all(entries.map(([key,src])=>new Promise(resolve=>{
@@ -102,7 +151,7 @@ function loadSprites(){
     img.onerror=()=>{resolve();};
     img.src=src;
   }))).then(()=>{spritesReady=!!spriteImgs.front;
-    if(spritesReady){const layers=buildOriginalMouthLayers(spriteImgs.front);spriteImgs.front_nomouth=layers.base;spriteImgs.original_mouth=layers.mouth;}
+    if(spritesReady){const layers=buildOriginalMouthLayers(spriteImgs.front);spriteImgs.front_nomouth=layers.base;spriteImgs.original_mouth=layers.mouth;prepareExpressionLayers();}
     paint(elapsed||0); $('status').textContent=spritesReady?'Wissensbuddy-Design geladen. Tonspur und Fotos hinzufügen.':'Die Ganzkörpergrafiken konnten nicht geladen werden.';});
 }
 loadSprites();
@@ -151,31 +200,27 @@ function getAudioAmp(){
 }
 function drawBuddy(scene,t,amp=0){
   // EIN Ganzkörper-Sprite in sämtlichen Szenen.
-  // Die Posenwahl verändert Gestenindikatoren, nie die Körperform oder den Ausschnitt.
-  // Die Originalfigur erscheint unverändert, solange kein Audio spricht.
+  // Ausdruck und Blinzeln ändern nur die Augen innerhalb der Originalbrille.
+  // Der Körper bleibt fest; Augen-Ausdruck und Mund haben getrennte Ebenen.
   const speaking=running&&Boolean(demoActive||audio&&!audio.paused&&!audio.ended);
   // Ganzkörper immer gleich, bei Ton nur der Mundbereich ausgetauscht.
-  const img=spriteImgs.front_nomouth; // One mouthless base, including closed-mouth pauses.
-  if(!img)return;
   const eyeBlink=Math.sin(t*1.43)>0.996 || Math.sin(t*1.93)>.999;
+  const expression=expressionForPose(scene.pose);
+  const changeEyes=eyeBlink||!!expressionGlyphs[expression];
+  const img=changeEyes?spriteImgs.expression_base:spriteImgs.front_nomouth;
+  if(!img)return;
   const sc=3.15,baseX=303,baseY=1250;
   g.save();g.translate(baseX,baseY);g.scale(sc,sc);
   g.drawImage(img,-img.width/2,-img.height/2);
+  if(changeEyes)drawExpressionEyes(g,expression,eyeBlink);
   let shape='X';
   if(speaking){
     if(cueMode==='rhubarb'||demoActive)shape=cueAt(demoActive?demoAudio.currentTime:audio.currentTime);
     else {const v=Math.min(1,Math.max(0,amp*2.4));shape=v<.09?'X':v<.30?'B':v<.6?'C':'D';}
   }
   drawMouth(g,shape);
-  // gelegentliches Blinzeln; die Brille bleibt identisch.
-  if(eyeBlink){
-    for(const [ex,ey] of [[-25,-61],[25,-62]]){
-      g.fillStyle='#fff';g.beginPath();g.ellipse(ex,ey,10,12,0,0,Math.PI*2);g.fill();
-      g.strokeStyle='#141a16';g.lineWidth=2.4;g.beginPath();g.moveTo(ex-8,ey);g.lineTo(ex+8,ey);g.stroke();
-    }
-  }
   g.restore();
-  const key=window.selectedPose||scene.pose;
+  const key=scene.pose;
   if(key==='gesture_point'||key==='gesture_idea'){
     text('!',565,810,92,'#22a91d',1000);
   }else if(key==='front_question'||key==='gesture_think'){
@@ -248,8 +293,10 @@ async function prepareAudio(asset){
 }
 function clearMouthData(){mouthCues=[];cueMode='level';projectLipSync=null;}
 function refreshAudioStatus(){
- $('audioStatus').textContent=audioAsset?audioAsset.name+' · '+totalDuration().toFixed(2)+' Sekunden · bleibt im Browser.':'Keine Tonspur geladen. Deine Dateien bleiben in diesem Browser.';
+ $('audioStatus').textContent=audioAsset?audioAsset.name+' · '+totalDuration().toFixed(2)+' Sekunden · bleibt im Browser.':'Keine Tonspur geladen. Play startet den kurzen Sprechtest mit Beispielaufnahme. Für dein Video hier die eigene Aufnahme laden.';
  $('duration').disabled=!!audioAsset;$('removeAudio').disabled=!audioAsset;
+ $('create').textContent=audioAsset?'▶ Vorschau abspielen':'▶ Sprechtest mit Beispielaufnahme';
+ $('preview').setAttribute('aria-label',audioAsset?'Vorschau mit deiner Tonspur starten':'Sprechtest mit Beispielaufnahme starten');
  $('lipStatus').textContent=projectLipSync?mouthCues.length+' importierte Mundstellungen für diese Tonspur.':'Vereinfachte Mundbewegung nach Lautstärke. Automatische Lauterkennung ist noch nicht eingebaut.';
 }
 function attachAudio(prepared,asset){
@@ -311,6 +358,7 @@ function animate(now){
 }
 async function preview(){
  if(mediaBusy||recording)return;
+ if(!audio)return playLipDemo();
  stop();elapsed=0;paint(0);updateHud(0);
  const current=audio;
  try{
@@ -323,7 +371,7 @@ async function playLipDemo(){
  stop();demoAudio=new Audio(DEMO_AUDIO);demoActive=true;elapsed=0;
  const current=demoAudio;
  current.onended=()=>{if(demoActive)finishPlayback();};
- try{await current.play();if(demoAudio!==current)return;running=true;started=performance.now();$('lipStatus').textContent='Sprechtest mit vorgegebenen Demo-Munddaten; keine automatische Analyse.';raf=requestAnimationFrame(animate);}
+ try{await current.play();if(demoAudio!==current)return;running=true;started=performance.now();$('status').textContent='Sprechtest mit kurzer Beispielaufnahme – keine eigene Tonspur geladen oder verändert.';$('lipStatus').textContent='Sprechtest mit vorgegebenen Demo-Munddaten; keine automatische Analyse.';raf=requestAnimationFrame(animate);}
  catch(err){stop();$('lipStatus').textContent='Sprechtest konnte nicht gestartet werden: '+err.message;}
 }
 $('demoLip').onclick=playLipDemo;
@@ -385,6 +433,7 @@ window.selectedPose=null;
 function clearPose(){window.selectedPose=null;document.querySelectorAll('.pose').forEach(x=>x.classList.remove('selected'));}
 function syncSceneEditor(){
   const scene=layouts[selectedSceneIndex];
+  document.querySelectorAll('.pose').forEach(button=>button.classList.toggle('selected',button.dataset.pose===expressionForPose(scene.pose)));
   $('sceneCounter').textContent='Szene '+(selectedSceneIndex+1)+' von '+layouts.length;
   $('sceneStart').value=String(Number(scene.start.toFixed(3)));$('sceneStart').disabled=selectedSceneIndex===0;
   $('sceneTimingHint').textContent='Bis '+(layouts[selectedSceneIndex+1]?.start??totalDuration()).toFixed(2)+' Sekunden. Das erste Bild beginnt bei 0.';
@@ -417,14 +466,14 @@ function buildScenes(){
   });
 }
 function buildPoses(){
-  const poses=[['Erklären','gesture_explain'],['Hinweis','gesture_point'],['Präsentieren','gesture_present'],['Daumen hoch','gesture_thumbs'],['Am Laptop','gesture_laptop'],['Idee!','gesture_idea'],['Grübelnd','gesture_think'],['Whoaa!','gesture_whoa']];
+  const poses=[['Neutral','front'],['Fröhlich','front_excited'],['Lachend','front_laugh'],['Neugierig','front_question'],['Erstaunt','front_surprised'],['Nachdenklich','gesture_think']];
   const root=$('poses');root.innerHTML='';
   poses.forEach(([label,key],i)=>{
-    const b=document.createElement('button');b.type='button';b.className='pose';
-    const image=document.createElement('img');image.src=buddyAssets[key];image.alt='Pose: '+label;
+    const b=document.createElement('button');b.type='button';b.className='pose';b.dataset.pose=key;
+    const image=document.createElement('img');image.src=buddyAssets[key];image.alt='Gesichtsausdruck: '+label;
     const span=document.createElement('span');span.textContent=label;
     b.append(image,span);
-    b.onclick=()=>{layouts[selectedSceneIndex].pose=key;window.selectedPose=key;document.querySelectorAll('.pose').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');paint(elapsed);$('editStatus').textContent='Geste gespeichert. Wissensbuddy bleibt als Ganzkörperfigur sichtbar.';};root.appendChild(b);
+    b.onclick=()=>{layouts[selectedSceneIndex].pose=key;window.selectedPose=key;document.querySelectorAll('.pose').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');paint(elapsed);$('editStatus').textContent='Gesichtsausdruck gespeichert: '+label+'. Die Figur bleibt vollständig sichtbar.';};root.appendChild(b);
   });
 }
 $('sceneHeadline').addEventListener('input',()=>{layouts[selectedSceneIndex].headline=$('sceneHeadline').value;paint(elapsed);buildScenes();});

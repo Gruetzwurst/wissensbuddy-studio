@@ -25,7 +25,7 @@ def wait(fn,seconds=15):
 sid=None
 try:
  wait(lambda:req('/status'))
- result=req('/session',{'capabilities':{'alwaysMatch':{'browserName':'firefox','moz:firefoxOptions':{'args':['-headless']}}}})
+ result=req('/session',{'capabilities':{'alwaysMatch':{'browserName':'firefox','moz:firefoxOptions':{'args':['-headless'] if os.environ.get('WB_HEADLESS')=='1' else []}}}})
  sid=result['sessionId'];base+='/session/'+sid
  print('Firefox',result['capabilities']['browserVersion'],flush=True)
  def js(s):return req('/execute/sync',{'script':'return window.eval(arguments[0])','args':['(function(){'+s+'})()']})
@@ -36,6 +36,27 @@ try:
  wait(lambda:js("return document.querySelectorAll('.scene-item').length>0 && spritesReady"))
  assert js("return !!document.getElementById('sceneStart')"),'Missing scene timing control'
  print('Timing control exists',flush=True)
+ # Silence only the test browser's playback, never system audio settings.
+ js("const NativeAudio=window.Audio;window.Audio=function(src){const element=new NativeAudio(src);if(src&&src.includes('demo/'))element.muted=true;return element;};const NativeContext=window.AudioContext;window.AudioContext=class extends NativeContext{get destination(){if(!this.testSilentSink){this.testSilentSink=this.createGain();this.testSilentSink.gain.value=0;this.testSilentSink.connect(super.destination);}return this.testSilentSink;}};")
+ expressions=js("const saved=window.selectedPose;running=false;function eyePixels(key){window.selectedPose=key;g.clearRect(0,0,W,H);drawBuddy({pose:key},0,0);return Array.from(g.getImageData(249,1013,70,70).data).join(',');}const neutral=eyePixels('front'),laugh=eyePixels('front_laugh');window.selectedPose=saved;paint(0);return neutral!==laugh;")
+ assert expressions,'Selecting another face leaves the actual eyes unchanged'
+ print('Expression selection changes rendered eyes: PASS',flush=True)
+ eye_skin=js("const c=document.createElement('canvas');c.width=136;c.height=256;const ctx=c.getContext('2d');ctx.drawImage(spriteImgs.expression_base,0,0);return [...ctx.getImageData(92,62,1,1).data];")
+ assert min(eye_skin[:3])>235,'Removing pupils must not leave a dark patch in the lens: '+str(eye_skin)
+
+ gallery=js("const gallery=document.createElement('canvas');gallery.width=1140;gallery.height=215;const ctx=gallery.getContext('2d');ctx.fillStyle='#eaf3e9';ctx.fillRect(0,0,1140,215);const styles=[['Neutral','front'],['Fröhlich','front_excited'],['Lachend','front_laugh'],['Neugierig','front_question'],['Erstaunt','front_surprised'],['Nachdenklich','gesture_think']];for(let i=0;i<styles.length;i++){g.clearRect(0,0,W,H);drawBuddy({pose:styles[i][1]},0,0);ctx.fillStyle='#133d2b';ctx.font='16px sans-serif';ctx.fillText(styles[i][0],i*190+12,20);ctx.drawImage(cv,120,850,370,360,i*190,30,185,180);}paint(0);return gallery.toDataURL('image/png').split(',')[1];")
+ (ARTIFACTS/'expressions.png').write_bytes(base64.b64decode(gallery))
+
+ click('preview');wait(lambda:js("return running"))
+ assert js("return demoActive"),'Preview without a track silently runs pictures instead of a labelled speech demo'
+ # Observe actual rendered mouth pixels over the running (muted) sample audio.
+ mouth_frames=js("return (async()=>{const frames=[];for(let i=0;i<14;i++){const pixels=g.getImageData(296,1089,84,69).data;let sum=0;for(let k=0;k<pixels.length;k++)sum=(sum+pixels[k]*(k%31+1))>>>0;frames.push(sum);await new Promise(r=>setTimeout(r,90));}return [...new Set(frames)].length;})()")
+ assert mouth_frames>1,'Sample playback does not visibly animate mouth pixels'
+ js("demoAudio.currentTime=5.2");wait(lambda:js("return elapsed>=5.2"))
+ assert js("return StudioTimeline.sceneAtTime(layouts,elapsed).pose==='front_excited'"),'Demo did not reach the next scene expression'
+ click('stop')
+ print('Preview without a track starts a sample with visibly changing mouth pixels: PASS',flush=True)
+
  mouth_check=js("const source=spriteImgs.front,base=spriteImgs.front_nomouth;const c=document.createElement('canvas');c.width=source.width;c.height=source.height;const ctx=c.getContext('2d');ctx.drawImage(source,0,0);const original=ctx.getImageData(0,0,c.width,c.height).data;ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(base,0,0);const replacement=ctx.getImageData(0,0,c.width,c.height).data;let outsideChanges=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){if(x>=66&&x<92&&y>=77&&y<98)continue;const i=(y*c.width+x)*4;for(let k=0;k<4;k++)if(original[i+k]!==replacement[i+k]){outsideChanges++;break;}}ctx.clearRect(0,0,c.width,c.height);ctx.save();ctx.translate(c.width/2,c.height/2);drawMouth(ctx,'D',11,-40.5);ctx.restore();const d=ctx.getImageData(0,0,c.width,c.height).data;let outsideMouth=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(d[(y*c.width+x)*4+3]&&(x<66||x>=92||y<77||y>=98))outsideMouth++;return {outsideChanges,outsideMouth};")
  assert mouth_check['outsideChanges']==0,'Mouth removal alters the glasses/face outside the mouth: '+str(mouth_check)
  assert mouth_check['outsideMouth']==0,'Animated mouth extends outside the original mouth area: '+str(mouth_check)
@@ -57,6 +78,8 @@ try:
   js("document.getElementById("+json.dumps(id)+").value="+json.dumps(str(value))+";document.getElementById("+json.dumps(id)+").dispatchEvent(new Event('change',{bubbles:true}));")
  click('newProject')
  assert js("return layouts.length===1 && !audioAsset")
+ js("document.querySelector('[data-pose=front_laugh]').click()")
+ assert js("return layouts[0].pose==='front_laugh'")
  upload_url('voice','demo/wissensbuddy-sprechtest.wav','meine-aufnahme.wav','audio/wav')
  wait(lambda:js("return !mediaBusy"))
  state=js("return {duration:totalDuration(),hasAudio:!!audioAsset,status:document.getElementById('status').textContent}")
@@ -89,7 +112,7 @@ try:
  click('newProject')
  js("const dt=new DataTransfer();dt.items.add(new File([JSON.stringify(testSaved)],'projekt.json',{type:'application/json'}));document.getElementById('loadProject').files=dt.files;document.getElementById('loadProject').dispatchEvent(new Event('change'));")
  wait(lambda:js("return !mediaBusy"))
- assert js("return audioAsset?.id===testAudioId && scenePhotos.size===1 && layouts[1].start===1.5 && mouthCues.length===28"),'Project roundtrip failed'
+ assert js("return audioAsset?.id===testAudioId && scenePhotos.size===1 && layouts[1].start===1.5 && mouthCues.length===28 && layouts[0].pose==='front_laugh'"),'Project roundtrip failed'
  js("const bad=structuredClone(testSaved);bad.topic='MUST NOT REPLACE';bad.scenes[0].image.source='data:image/png;base64,YmFk';const dt=new DataTransfer();dt.items.add(new File([JSON.stringify(bad)],'bad.json',{type:'application/json'}));document.getElementById('loadProject').files=dt.files;document.getElementById('loadProject').dispatchEvent(new Event('change'));")
  wait(lambda:js("return !mediaBusy"))
  assert js("return document.getElementById('topic').value!=='MUST NOT REPLACE' && audioAsset.id===testAudioId && scenePhotos.size===1"),'Bad media destroyed project'
