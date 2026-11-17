@@ -33,9 +33,23 @@ try:
  def click(id):req('/element/'+element(id)+'/click',{})
  def upload(id,path):req('/element/'+element(id)+'/value',{'text':str(path)})
  req('/url',{'url':'http://127.0.0.1:8765/'})
- wait(lambda:js("return document.querySelectorAll('.scene-item').length>0"))
+ wait(lambda:js("return document.querySelectorAll('.scene-item').length>0 && spritesReady"))
  assert js("return !!document.getElementById('sceneStart')"),'Missing scene timing control'
  print('Timing control exists',flush=True)
+ mouth_check=js("const source=spriteImgs.front,base=spriteImgs.front_nomouth;const c=document.createElement('canvas');c.width=source.width;c.height=source.height;const ctx=c.getContext('2d');ctx.drawImage(source,0,0);const original=ctx.getImageData(0,0,c.width,c.height).data;ctx.clearRect(0,0,c.width,c.height);ctx.drawImage(base,0,0);const replacement=ctx.getImageData(0,0,c.width,c.height).data;let outsideChanges=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){if(x>=66&&x<92&&y>=77&&y<98)continue;const i=(y*c.width+x)*4;for(let k=0;k<4;k++)if(original[i+k]!==replacement[i+k]){outsideChanges++;break;}}ctx.clearRect(0,0,c.width,c.height);ctx.save();ctx.translate(c.width/2,c.height/2);drawMouth(ctx,'D',11,-40.5);ctx.restore();const d=ctx.getImageData(0,0,c.width,c.height).data;let outsideMouth=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(d[(y*c.width+x)*4+3]&&(x<66||x>=92||y<77||y>=98))outsideMouth++;return {outsideChanges,outsideMouth};")
+ assert mouth_check['outsideChanges']==0,'Mouth removal alters the glasses/face outside the mouth: '+str(mouth_check)
+ assert mouth_check['outsideMouth']==0,'Animated mouth extends outside the original mouth area: '+str(mouth_check)
+ assert js("const c=document.createElement('canvas');c.width=136;c.height=256;const ctx=c.getContext('2d');for(const shape of ['A','B','C','D','E','F','G','H','X']){ctx.clearRect(0,0,136,256);ctx.save();ctx.translate(68,128);drawMouth(ctx,shape);ctx.restore();const d=ctx.getImageData(0,0,136,256).data;for(let y=0;y<256;y++)for(let x=0;x<136;x++)if(d[(y*136+x)*4+3]&&(x<66||x>=92||y<77||y>=98))return false;}return true;"),'A mouth variant extends outside the native mouth region'
+
+ print('Native face and mouth-area regression:',mouth_check,flush=True)
+ skin=js("const c=document.createElement('canvas');c.width=136;c.height=256;const ctx=c.getContext('2d');ctx.drawImage(spriteImgs.front_nomouth,0,0);return [...ctx.getImageData(76,90,1,1).data];")
+ assert 235<skin[1]<255,'The mouthless layer leaves a flat white patch instead of the original face shading: '+str(skin)
+
+ # Render the actual original/closed/open faces in the browser for visual review.
+ face_review=js("const c=document.createElement('canvas');c.width=840;c.height=360;const ctx=c.getContext('2d');ctx.fillStyle='#eaf3e9';ctx.fillRect(0,0,c.width,c.height);const variants=['Original','Geschlossen','Offen'];variants.forEach((label,i)=>{ctx.fillStyle='#133d2b';ctx.font='20px sans-serif';ctx.fillText(label,i*280+20,28);ctx.save();ctx.translate(i*280+10,45);ctx.scale(2,2);if(i===0)ctx.drawImage(spriteImgs.front,0,0);else{ctx.drawImage(spriteImgs.front_nomouth,0,0);ctx.translate(68,128);drawMouth(ctx,i===1?'X':'D');}ctx.restore();});return c.toDataURL('image/png').split(',')[1];")
+ (ARTIFACTS/'face-comparison.png').write_bytes(base64.b64decode(face_review))
+
+
  js("window.testErrors=[];addEventListener('error',e=>testErrors.push(e.message));addEventListener('unhandledrejection',e=>testErrors.push(String(e.reason)))")
  def upload_url(id,url,name,mime):
   js("return fetch("+json.dumps(url)+").then(r=>r.blob()).then(b=>{const dt=new DataTransfer();dt.items.add(new File([b],"+json.dumps(name)+",{type:"+json.dumps(mime)+"}));const el=document.getElementById("+json.dumps(id)+");el.files=dt.files;el.dispatchEvent(new Event('change',{bubbles:true}));return true;})")

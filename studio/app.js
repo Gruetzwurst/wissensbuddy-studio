@@ -16,19 +16,49 @@ const SAMPLE_CUES=[
 [4.70,5.00,'D'],[5.00,5.22,'B'],[5.22,5.43,'X'],[5.43,5.70,'C'],[5.70,5.92,'A'],[5.92,6.18,'D'],[6.18,6.50,'B'],[6.50,6.85,'X']
 ].map(([start,end,value])=>({start,end,value}));
 function cueAt(t){return StudioLipSync.mouthAtTime(demoActive?SAMPLE_CUES:mouthCues,t);}
-function drawMouth(g,shape,mx,my){
- const dark='#171917',tongue='#f37872';g.lineCap='round';g.lineJoin='round';
- if(shape==='X'||shape==='A'){
-   g.strokeStyle=dark;g.lineWidth=2.6;g.beginPath();g.moveTo(mx-9,my);g.quadraticCurveTo(mx,my+7,mx+9,my);g.stroke();return;
+// Sprite coordinates from the original 136 × 256 front pose.
+// Only these pixels may change; glasses and the rest of the face stay intact.
+const mouthArea={x:66,y:77,width:26,height:21,anchorX:79,anchorY:87.5};
+function buildOriginalMouthLayers(original){
+ const base=document.createElement('canvas');base.width=original.width;base.height=original.height;
+ const bg=base.getContext('2d');bg.drawImage(original,0,0);
+ const face=bg.getImageData(0,0,base.width,base.height);
+ const sample=(x,y)=>Array.from(face.data.slice((y*base.width+x)*4,(y*base.width+x)*4+3));
+ const corners=[sample(76,77),sample(91,77),sample(66,97),sample(91,97)];
+ const mouth=document.createElement('canvas');mouth.width=mouthArea.width;mouth.height=mouthArea.height;
+ const mg=mouth.getContext('2d');
+ for(let y=mouthArea.y;y<mouthArea.y+mouthArea.height;y++){
+  // The upper-left corner belongs to the glasses, not the mouth.
+  const x=y===77?86:y===78?83:y===79?79:y===80?67:66;
+  const width=mouthArea.x+mouthArea.width-x;
+  for(let column=x;column<mouthArea.x+mouthArea.width;column++){
+   const fx=(column-mouthArea.x)/(mouthArea.width-1),fy=(y-mouthArea.y)/(mouthArea.height-1);
+   const index=(y*base.width+column)*4;
+   for(let channel=0;channel<3;channel++){
+    const top=corners[0][channel]*(1-fx)+corners[1][channel]*fx;
+    const bottom=corners[2][channel]*(1-fx)+corners[3][channel]*fx;
+    face.data[index+channel]=Math.round(top*(1-fy)+bottom*fy);
+   }
+  }
+  mg.drawImage(original,x,y,width,1,x-mouthArea.x,y-mouthArea.y,width,1);
  }
- if(shape==='B'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+1,10,5,0,0,Math.PI*2);g.fill();return;}
- if(shape==='C'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+2,11,9,0,0,Math.PI*2);g.fill();g.fillStyle=tongue;g.beginPath();g.ellipse(mx,my+7,6,2.5,0,0,Math.PI*2);g.fill();return;}
- if(shape==='D'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+2,10,14,0,0,Math.PI*2);g.fill();g.fillStyle=tongue;g.beginPath();g.ellipse(mx,my+11,5,2,0,0,Math.PI*2);g.fill();return;}
- if(shape==='E'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+2,7,13,0,0,Math.PI*2);g.fill();return;}
- if(shape==='F'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+3,13,9,0,0,Math.PI*2);g.fill();g.fillStyle='#fff';g.fillRect(mx-11,my-1,22,5);return;}
- if(shape==='G'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+1,12,5,0,0,Math.PI*2);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(mx-10,my-1);g.lineTo(mx+10,my-1);g.stroke();return;}
- if(shape==='H'){g.fillStyle=dark;g.beginPath();g.ellipse(mx,my+2,11,8,0,0,Math.PI*2);g.fill();g.fillStyle=tongue;g.beginPath();g.ellipse(mx-3,my,4,3,0,0,Math.PI*2);g.fill();return;}
- drawMouth(g,'X',mx,my);
+ bg.putImageData(face,0,0);
+ return {base,mouth};
+}
+function drawMouth(g,shape,mx=11,my=-40.5){
+ const mouth=spriteImgs.original_mouth;if(!mouth)return;
+ g.save();g.translate(mx,my);
+ // All positions reshape the same original mouth, never add a second mouth.
+ if(shape==='X'||shape==='A'){
+  g.strokeStyle='#171917';g.lineWidth=1.8;g.lineCap='round';
+  g.beginPath();g.moveTo(-10,-5);g.quadraticCurveTo(0,1,9,-7);g.stroke();
+ }else{
+  const sizes={B:[1,.28],C:[1,.72],D:[1,1],E:[.75,.65],F:[.5,.5],G:[.9,.3],H:[1,.75]};
+  const [sx,sy]=sizes[shape]||sizes.B;
+  g.scale(sx,sy);
+  g.drawImage(mouth,-mouth.width/2,-mouth.height/2);
+ }
+ g.restore();
 }
 const DURATIONS={40:'00:40',50:'00:50',60:'01:00'};
 const buddyAssets={
@@ -71,7 +101,9 @@ function loadSprites(){
     img.onload=()=>{spriteImgs[key]=img; resolve();};
     img.onerror=()=>{resolve();};
     img.src=src;
-  }))).then(()=>{spritesReady=!!(spriteImgs.front&&spriteImgs.front_nomouth); paint(elapsed||0); $('status').textContent=spritesReady?'Wissensbuddy-Design geladen. Tonspur und Fotos hinzufügen.':'Die Ganzkörpergrafiken konnten nicht geladen werden.';});
+  }))).then(()=>{spritesReady=!!spriteImgs.front;
+    if(spritesReady){const layers=buildOriginalMouthLayers(spriteImgs.front);spriteImgs.front_nomouth=layers.base;spriteImgs.original_mouth=layers.mouth;}
+    paint(elapsed||0); $('status').textContent=spritesReady?'Wissensbuddy-Design geladen. Tonspur und Fotos hinzufügen.':'Die Ganzkörpergrafiken konnten nicht geladen werden.';});
 }
 loadSprites();
 
@@ -134,7 +166,7 @@ function drawBuddy(scene,t,amp=0){
     if(cueMode==='rhubarb'||demoActive)shape=cueAt(demoActive?demoAudio.currentTime:audio.currentTime);
     else {const v=Math.min(1,Math.max(0,amp*2.4));shape=v<.09?'X':v<.30?'B':v<.6?'C':'D';}
   }
-  drawMouth(g,shape,8,-40);
+  drawMouth(g,shape);
   // gelegentliches Blinzeln; die Brille bleibt identisch.
   if(eyeBlink){
     for(const [ex,ey] of [[-25,-61],[25,-62]]){
