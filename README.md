@@ -6,6 +6,8 @@ Tonaufnahme oben laden, pro Szene ein eigenes Foto einsetzen und über „Bild e
 
 Ohne importierte Munddaten arbeitet die Mundanimation vereinfacht nach Lautstärke. **Automatische Lauterkennung ist noch nicht eingebaut.** Browserexport wurde mit WebM und Ton in Firefox geprüft; MP4 und echtes iPhone Safari bleiben offen. Nachweise und Testgrenzen stehen in [docs/acceptance.md](docs/acceptance.md).
 
+Ohne eigene Tonspur startet Play den kurzen Sprechtest mit Beispielaufnahme. Unter „Gesichtsausdruck“ kann pro Szene zwischen neutral, fröhlich, lachend, neugierig, erstaunt und nachdenklich gewählt werden. Die separate Browser-Textprobe animiert die Figur nicht.
+
 Die nachfolgenden Abschnitte dokumentieren auch den früheren v8-Prototyp und das weitergehende Zielbild.
 
 **Wissensbuddy Studio** ist ein mobiles, möglichst kostenloses Werkzeug zum Erstellen kurzer deutschsprachiger Wissensvideos im Hochkantformat **9:16**. Der wiederkehrende Moderator **Wissensbuddy** ist ein kleiner Cartoon-Nerd mit weißem rundem Kopf, großen runden schwarzen Brillengläsern, drei Haarsträhnen, grünem Hoodie, dunkler Hose und weißen Sneakern.

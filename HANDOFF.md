@@ -61,3 +61,8 @@ Grenzen: Audio bis 40 MB / 10 Minuten, Einzelbild bis 20 MB, Projektdatei bis 10
 
 ## Mundkorrektur (17.11.2026)
 Der sichtbare Mund stammt jetzt aus der Originalfigur. Nur seine ursprüngliche Fläche wird animiert; die großflächige alte Gesichtsabdeckung und die darüber gezeichneten Fremdformen werden nicht mehr verwendet. Die Basis wird im Browser aufgebaut, ohne die Originaldateien zu verändern. Firefox-Pixeltests prüfen unveränderte Gesichtspixel außerhalb der Mundfläche und die Begrenzung aller Mundvarianten auf die ursprüngliche Fläche. Die Lautanalyse bleibt unverändert offen.
+
+## Sprechtest und Gesichtsausdrücke (17.11.2026)
+Play ohne geladene Tonspur startet jetzt einen klar beschrifteten kurzen Sprechtest, statt nur stumm die Bildfolge abzuspielen. Der Test verändert gespeicherte Nutzeraufnahmen nicht. Die Auswahl unten bietet sechs echte Augen-Ausdrücke aus den Originalgrafiken, je Szene gespeichert; die Ganzkörperfigur und die Mundkorrektur bleiben erhalten. Blinzeln verwendet dieselbe korrekt positionierte Augenebene. Die separate Browser-Textprobe ist ausdrücklich als ohne Figurenanimation gekennzeichnet. Automatische Lauterkennung ist weiterhin nicht implementiert.
+
+Nutzerpräferenz: Browsertests sichtbar vorführen. Vor hörbarem Ton fragen und Antwort abwarten; ohne Zustimmung stumm testen. Der Firefox-Test ist nun standardmäßig sichtbar und unterdrückt nur seine eigene Ausgabe.

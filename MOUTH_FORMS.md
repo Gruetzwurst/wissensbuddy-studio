@@ -29,3 +29,6 @@ Ein separates Canvas enthält nur den Mund aus derselben Originalgrafik. `drawMo
 Diese Varianten sind stilgetreue Öffnungs-/Breitenvarianten des Originalmunds, keine vollständigen phonemgenauen Viseme. Automatische Lauterkennung bleibt weiterhin offen. Die Angaben zum alten Aufruf `drawMouth(g, shape, 8, -40)` oben beschreiben den historischen v8-Stand; der aktuelle Aufruf benötigt keine Positionsparameter mehr.
 
 Die kleine mundlose Basis wird direkt aus der Originalfigur aufgebaut. Hautfarben aus unveränderten Randpunkten erhalten die leichte Gesichtsschattierung; die alte reinweiße Abdeckung wird nicht mehr übernommen.
+
+## Gesichtsausdrücke und Sprechtest (17.11.2026)
+Die Mundebene bleibt vom Augen-Ausdruck getrennt. Sechs Ausdrücke werden anhand der vorhandenen Referenz-Augenformen innerhalb der Originalbrille zusammengesetzt und pro Szene aus `pose` gewählt; alte Gestenschlüssel werden kompatibel auf einen Ausdruck abgebildet. Blinzeln entfernt nur die Originalpupillen und zeichnet an derselben Stelle geschlossene Augen. Der Sprechtest verwendet weiterhin ausschließlich die vorhandene Aufnahme und Demo-Cues. Ohne geladene Tonspur startet die Vorschau diesen Test sichtbar als Demo; die automatische Analyse wird dadurch nicht ersetzt.
