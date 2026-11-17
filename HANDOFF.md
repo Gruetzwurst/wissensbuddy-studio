@@ -53,3 +53,8 @@ Die freigegebenen Charakter- und UI-Vorlagen sind verbindlich: weißer Rundkopf,
 Die Originalgrafiken, Demo-Medien und Referenzen aus `wissensbuddy.zip` wurden ergänzt. Bestehende README, HTML und Übergabetexte blieben erhalten. Alle 15 Asset-Verweise sind lokal vorhanden; JavaScript-Syntaxprüfung mit Node erfolgreich. 29 Medien-/Referenzdateien stimmen bytegleich mit dem ZIP überein.
 
 Ein neuer funktionaler Browser- oder Audiotest wurde nicht durchgeführt: Hier ist kein Browser verfügbar; der Download des Testbrowsers wurde abgelehnt. Echtes iPhone Safari, HTTPS-Wiedergabe und Videoexport bleiben ungeprüft.
+
+## Foto-/Tonvorlage: Umsetzung vom 16.11.2026
+Eine durchgehende Aufnahme bestimmt jetzt die Videolänge. Szenen haben editierbare Startzeiten in Sekunden; Fotos und Szenen lassen sich hinzufügen und entfernen. Die Projektdatei Version 5 enthält die Tonspur, Bilder, Startzeiten, Textoptionen und importierte Munddaten. Alte Projekte der Version 4 werden migriert. Ungültige Dateien ersetzen den vorhandenen Stand nicht. Fotos werden für die Vorlage auf maximal 1600 Pixel Kantenlänge verkleinert; die Originaldateien bleiben unverändert.
+
+Grenzen: Audio bis 40 MB / 10 Minuten, Einzelbild bis 20 MB, Projektdatei bis 100 MB, maximal 200 Szenen. Verarbeitung im Browser. Es gibt keinen neuen externen Dienst. Automatische Lauterkennung bleibt nach der Entscheidung, ohne Downloads weiterzuarbeiten, offen. Siehe `docs/lipsync-feasibility.md` und `docs/acceptance.md` für Nachweise und Einschränkungen.
